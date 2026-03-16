@@ -2,18 +2,27 @@ import os
 import json
 import re
 import google.generativeai as genai
+from django.contrib.auth.models import User
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from .serializers import RegisterSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
+from django.http import HttpResponse
 from .models import TechStack as TechStackModel
 from .serializers import TechStackSerializer
-import google.generativeai as genai
+#import google.generativeai as genai
+#from .utils import generate_deployment_pdf
 from django.shortcuts import render
 from .models import (
     HostingSuggestion,
-    TechStack as TechStackModel,
+    TechStack,
     DeploymentPreference,
+    #DeploymentPlan
 )
 from .serializers import (
     HostingSuggestionSerializer,
@@ -34,7 +43,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def extract_techstack(request):
     prompt = request.data.get("prompt") or request.data.get("text")
     if not prompt:
@@ -66,7 +75,11 @@ def extract_techstack(request):
         text = re.sub(r"```json|```", "", text).strip()
         parsed = json.loads(text)
         # Save to DB
-        row = TechStackModel.objects.create(data=parsed)
+        row = TechStackModel.objects.create(
+            user=request.user,
+            data=parsed
+        )
+
         serializer = TechStackSerializer(row)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except json.JSONDecodeError:
@@ -143,7 +156,7 @@ def suggest_hosts(pref, techstack):
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def create_deployment_pref(request):
     """
     POST /api/deployment/preferences/
@@ -161,7 +174,7 @@ def create_deployment_pref(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    pref = serializer.save()
+    pref = serializer.save(user=request.user)
 
     # get techstack data; handle case when pref.techstack might be None
     techstack_data = pref.techstack.data if getattr(pref, "techstack", None) else {"frameworks": [], "databases": []}
@@ -182,3 +195,93 @@ def create_deployment_pref(request):
     DeploymentPreferenceSerializer(pref).data,
     status=status.HTTP_201_CREATED
     )
+
+
+@api_view(["POST"])
+def register_user(request):
+    serializer = RegisterSerializer(data=request.data)
+
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {"message": "User registered successfully"},
+            status=status.HTTP_201_CREATED
+        )
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(["POST"])
+def login_user(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+
+    user = authenticate(username=username, password=password)
+
+    if user is None:
+        return Response(
+            {"error": "Invalid credentials"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        "refresh": str(refresh),
+        "access": str(refresh.access_token),
+    })
+
+
+@api_view(["POST"])
+def logout_user(request):
+    try:
+        refresh_token = request.data["refresh"]
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+
+        return Response({"message": "Logged out successfully"})
+    except Exception:
+        return Response({"error": "Invalid token"}, status=400)
+    
+
+# @api_view(["POST"])
+# @permission_classes([IsAuthenticated])
+# def download_plan_pdf(request):
+
+#     techstack_id = request.data.get("techstack_id")
+
+#     user = request.user
+
+#     try:
+#         techstack = TechStack.objects.get(id=techstack_id, user=user)
+
+#         preference = DeploymentPreference.objects.get(
+#             techstack=techstack,
+#             user=user
+#         )
+
+#         # plan = DeploymentPlan.objects.get(
+#         #     techstack=techstack,
+#         #     user=user,
+#         #     plan="1. Deploy React frontend to Vercel\n2. Deploy Node backend to Render\n3. Use MongoDB Atlas\n4. Setup authentication"
+#         # )
+
+#     except TechStack.DoesNotExist:
+#         return Response({"error": "TechStack not found"}, status=404)
+
+#     except DeploymentPlan.DoesNotExist:
+#         return Response({"error": "Deployment plan not generated yet"}, status=404)
+
+#     pdf_buffer = generate_deployment_pdf(
+#         project_idea="User project idea",
+#         techstack=techstack.data,
+#         preference=preference,
+#      #   plan_text=plan.plan
+#     )
+
+#     response = HttpResponse(pdf_buffer, content_type="application/pdf")
+
+#     response["Content-Disposition"] = "attachment; filename=deployment_plan.pdf"
+
+#     return response

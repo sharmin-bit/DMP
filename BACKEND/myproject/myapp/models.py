@@ -1,7 +1,15 @@
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 class TechStack(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    prompt = models.TextField()
+    result = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class TechStack(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     data = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -14,7 +22,8 @@ class TechStack(models.Model):
 class DeploymentPreference(models.Model):
     CODING_CHOICES = (("coding","coding"), ("no-code","no-code"))
     RUNTIME_CHOICES = (("static","static"), ("serverless","serverless"), ("container","container"))
-
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     techstack = models.ForeignKey(TechStack, on_delete=models.CASCADE, related_name="preferences")
     coding_choice = models.CharField(max_length=10, choices=CODING_CHOICES)
     monthly_users = models.IntegerField(help_text="Estimate monthly active users")
@@ -33,3 +42,11 @@ class HostingSuggestion(models.Model):
     name = models.CharField(max_length=100)
     why = models.TextField()
     created_at = models.DateTimeField(default=timezone.now)
+
+# class DeploymentPlan(models.Model):
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#     techstack = models.ForeignKey(TechStack, on_delete=models.CASCADE)
+
+#     #plan = models.TextField()
+
+#     created_at = models.DateTimeField(auto_now_add=True)
