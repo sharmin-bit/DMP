@@ -6,9 +6,9 @@ import { useNavigate } from "react-router-dom";
 import Stepper from "../components/Stepper";
 
 export default function IdeaInput() {
-    const { projectData, setProjectData } = useContext(ProjectContext);
+  const { projectData, setProjectData } = useContext(ProjectContext);
   const [idea, setIdea] = useState("");
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const examples = [
     "Food delivery app using React",
     "AI Resume Screener",
@@ -19,85 +19,79 @@ export default function IdeaInput() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-purple-100 flex flex-col items-center pt-20">
-
+    <div className="app-shell flex min-h-screen flex-col items-center px-4">
       <FloatingLogo />
 
-      {/* Step Progress */}
-      <Stepper currentStep={1} />
-
+      {/* Step Progress + top actions */}
+      <div className="flex w-full max-w-4xl items-center justify-between pt-2">
+        <Stepper currentStep={1} />
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="rounded-full border border-slate-700/80 bg-slate-950/80 px-3.5 py-1.5 text-xs font-medium text-slate-200 shadow-sm shadow-slate-900/80 transition hover:border-indigo-400 hover:text-indigo-100"
+        >
+          Home
+        </button>
+      </div>
 
       {/* Main Card */}
-      <div className="bg-white mt-10 p-10 rounded-2xl shadow-xl border w-[650px]">
+      <div className="mt-8 grid w-full max-w-4xl gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)]">
+        <div className="relative rounded-2xl border border-slate-800/80 bg-slate-950/90 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500/25 to-sky-500/25 opacity-80 blur-3xl" />
 
-        <h2 className="text-2xl font-semibold text-center text-gray-800">
-          What's your idea?
-        </h2>
+          <h2 className="text-lg font-semibold text-slate-50">
+            What’s your idea?
+          </h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Describe your project in simple words. No need to be technical.
+          </p>
 
-        <p className="text-center text-gray-500 mt-2">
-          Describe your project in simple words
-        </p>
-
-        {/* Textarea */}
-        <textarea
+          <textarea
             value={projectData.idea}
             onChange={(e) =>
-                setProjectData({ ...projectData, idea: e.target.value })
+              setProjectData({ ...projectData, idea: e.target.value })
             }
-            placeholder="Describe your project idea..."
-            className="w-full mt-6 p-4 border rounded-lg h-28"
-        />
+            placeholder="Example: A simple task manager for students where they can track assignments and deadlines."
+            className="mt-4 h-32 w-full rounded-xl border border-slate-700/80 bg-slate-950/80 px-3.5 py-3 text-sm text-slate-100 outline-none ring-0 transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50 placeholder:text-slate-500"
+          />
 
-        {/* Example Buttons */}
-        <p className="text-sm text-gray-500 mt-5">
-          Or try one of these:
-        </p>
+          <p className="mt-4 text-[0.75rem] text-slate-400">
+            Or start from a template:
+          </p>
 
-        <div className="flex flex-wrap gap-3 mt-3">
+          <div className="mt-2 flex flex-wrap gap-2">
+            {examples.map((ex, i) => (
+              <button
+                key={i}
+                onClick={() => setProjectData({ ...projectData, idea: ex })}
+                className="rounded-full border border-slate-700/80 bg-slate-950/80 px-3 py-1.5 text-[0.7rem] text-slate-100 transition hover:border-indigo-400 hover:bg-slate-900 hover:text-indigo-100"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
 
-          {examples.map((ex, i) => (
-  <button
-    key={i}
-    onClick={() =>
-      setProjectData({ ...projectData, idea: ex })
-    }
-    className="px-4 py-2 border rounded-full text-sm hover:bg-gray-100"
-  >
-    {ex}
-  </button>
-))}
-
+          <button
+            onClick={() => navigate("/stack")}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-fuchsia-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/40 transition hover:brightness-110 hover:shadow-[0_22px_70px_rgba(79,70,229,0.7)]"
+          >
+            <span>Continue to stack</span>
+            <span className="text-xs">→</span>
+          </button>
         </div>
 
-        {/* Continue */}
-        <button
-        onClick={() => navigate("/stack")}
-        className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-        >
-            Continue →
-        </button>
-
+        {/* Tips Card */}
+        <div className="rounded-2xl border border-slate-800/80 bg-slate-950/90 p-5 text-sm text-slate-300 shadow-[0_18px_45px_rgba(15,23,42,0.9)]">
+          <h3 className="text-sm font-semibold text-slate-50">
+            Tips for a clear idea
+          </h3>
+          <ul className="mt-3 list-disc space-y-1 pl-4 text-[0.8rem] text-slate-300">
+            <li>Explain what your app does in one sentence.</li>
+            <li>Mention who will use it (students, sellers, teachers…).</li>
+            <li>Add 2–3 main features if you can.</li>
+            <li>Don’t worry about tech terms, we’ll handle that later.</li>
+          </ul>
+        </div>
       </div>
-
-
-      {/* Tips Card */}
-      <div className="bg-white mt-8 p-6 rounded-xl shadow border w-[650px]">
-
-        <h3 className="font-semibold mb-2">
-          💡 Tips for a great project description
-        </h3>
-
-        <ul className="text-gray-600 text-sm list-disc ml-5">
-
-          <li>Explain what your app does</li>
-          <li>Mention your target users</li>
-          <li>Add main features if possible</li>
-          <li>Don't worry about technical details</li>
-
-        </ul>
-
-      </div>
-
     </div>
   );
 }

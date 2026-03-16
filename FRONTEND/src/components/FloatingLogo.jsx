@@ -1,19 +1,23 @@
 export default function FloatingLogo() {
   return (
-    <div className="flex justify-center mb-10 animate-float">
+    <div className="flex justify-center pt-6 pb-6 animate-float">
+      <div className="relative flex items-center gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/90 px-6 py-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.9)] backdrop-blur-2xl">
+        <div className="absolute inset-px rounded-2xl border border-slate-800/80" />
 
-      <div className="flex items-center gap-3 bg-white/70 backdrop-blur-md px-6 py-3 rounded-xl shadow-lg border">
-
-        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
+        <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-sky-500 to-fuchsia-500 text-base font-semibold text-white shadow-lg shadow-indigo-500/40">
           ⚡
         </div>
 
-        <span className="text-lg font-semibold text-gray-800">
-          Prompt2Deploy
-        </span>
-
+        <div className="relative flex flex-col">
+          <span className="text-sm font-semibold tracking-wide text-slate-50">
+            Prompt2Deploy
+          </span>
+          <span className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-slate-500">
+            Idea · Stack · Cloud
+          </span>
+        </div>
       </div>
-
     </div>
   );
 }
+

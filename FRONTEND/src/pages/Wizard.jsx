@@ -58,34 +58,50 @@ export default function Wizard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-purple-100 flex flex-col items-center pt-20">
-
+    <div className="app-shell flex min-h-screen flex-col items-center px-4">
       <FloatingLogo />
 
-      <Stepper currentStep={3} />
+      {/* Stepper */}
+      <div className="flex w-full max-w-4xl items-center justify-between pt-2">
+        <Stepper currentStep={3} />
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="rounded-full border border-slate-700/80 bg-slate-950/80 px-3.5 py-1.5 text-xs font-medium text-slate-200 shadow-sm shadow-slate-900/80 transition hover:border-indigo-400 hover:text-indigo-100"
+        >
+          Home
+        </button>
+      </div>
 
-      <div className="bg-white mt-10 p-10 rounded-2xl shadow-xl border w-[650px]">
-
-        <h2 className="text-xl font-semibold text-center text-gray-800">
+      <div className="mt-8 w-full max-w-3xl rounded-2xl border border-slate-800/80 bg-slate-950/90 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
+        <h2 className="text-lg font-semibold text-slate-50 text-center">
           {current.question}
         </h2>
+        <p className="mt-1 text-center text-xs text-slate-400">
+          These answers help us pick sensible defaults for your cloud setup.
+        </p>
 
-        <div className="mt-8 flex flex-col gap-4">
-
+        <div className="mt-6 grid gap-3">
           {current.options.map((opt, i) => (
             <button
               key={i}
               onClick={() => handleAnswer(opt)}
-              className="p-4 border rounded-lg hover:bg-indigo-50 hover:border-indigo-400 transition"
+              className="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 transition hover:border-indigo-400 hover:bg-slate-900"
             >
-              {opt}
+              <span>{opt}</span>
+              <span className="h-2 w-2 rounded-full bg-slate-600" />
             </button>
           ))}
-
         </div>
 
+        <div className="mt-5 flex items-center justify-between text-[0.75rem] text-slate-400">
+          <span>
+            Question {step + 1} of {questions.length}
+          </span>
+          <span className="rounded-full bg-slate-900/90 px-3 py-1 text-[0.7rem] text-slate-300">
+            Click an option to go next
+          </span>
+        </div>
       </div>
-
     </div>
   );
 }
