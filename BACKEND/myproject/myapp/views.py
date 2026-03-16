@@ -45,44 +45,75 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def extract_techstack(request):
+
     prompt = request.data.get("prompt") or request.data.get("text")
+
     if not prompt:
         return Response(
             {"detail": "'prompt' is required"},
             status=status.HTTP_400_BAD_REQUEST
         )
+
     try:
+
         full_prompt = f"""
-                     Extract technologies from the project description.
-                     Return ONLY valid JSON with this structure:
-                  {{
-                     "languages": [],
-                     "frameworks": [],
-                     "databases": [],
-                     "cloud": []
-                   }}
-                 Rules:
-                    - Use exact names mentioned
-                    - If nothing is mentioned return empty list
-                    - Do NOT add explanation
-                 Project:
-                 {prompt}
-                 """
+You are an expert software architect.
+
+Your task is to analyze a project idea and determine the technology stack.
+
+IMPORTANT LOGIC:
+
+1. If technologies are explicitly mentioned in the idea, extract them.
+2. If technologies are NOT mentioned, intelligently suggest a suitable stack for building the project.
+
+Return ONLY valid JSON in the exact format below.
+
+JSON FORMAT:
+{{
+  "languages": [],
+  "frameworks": [],
+  "databases": [],
+  "cloud": []
+}}
+
+RULES:
+- Do NOT add explanation.
+- Do NOT include markdown.
+- Use common industry technologies.
+- Maximum 2-3 items per category.
+- If no cloud is required, still suggest one (AWS, GCP, Azure, Vercel, etc).
+
+PROJECT IDEA:
+{prompt}
+"""
 
         response = model.generate_content(full_prompt)
+
         text = response.text.strip()
-        # Remove markdown ```json ``` if Gemini adds it
+
+        # Remove markdown if Gemini adds it
         text = re.sub(r"```json|```", "", text).strip()
+
         parsed = json.loads(text)
-        # Save to DB
+
+        # Ensure keys exist
+        parsed.setdefault("languages", [])
+        parsed.setdefault("frameworks", [])
+        parsed.setdefault("databases", [])
+        parsed.setdefault("cloud", [])
+
+        # Save in DB
         row = TechStackModel.objects.create(
             user=request.user,
             data=parsed
         )
 
         serializer = TechStackSerializer(row)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     except json.JSONDecodeError:
+
         return Response(
             {
                 "error": "Gemini returned invalid JSON",
@@ -90,13 +121,13 @@ def extract_techstack(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
     except Exception as e:
+
         return Response(
             {"error": str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-
 def suggest_hosts(pref, techstack):
     """
     pref: DeploymentPreference instance

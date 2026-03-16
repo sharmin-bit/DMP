@@ -1,5 +1,6 @@
 import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import FloatingLogo from "../components/FloatingLogo";
 import Stepper from "../components/Stepper";
 import { ProjectContext } from "../context/ProjectContext";
@@ -8,6 +9,9 @@ export default function Wizard() {
 
   const navigate = useNavigate();
   const { projectData, setProjectData } = useContext(ProjectContext);
+
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(0);
 
   const questions = [
     {
@@ -37,71 +41,151 @@ export default function Wizard() {
     }
   ];
 
-  const [step, setStep] = useState(0);
   const current = questions[step];
 
-  const handleAnswer = (answer) => {
+  const handleAnswer = async (answer) => {
+
+    const updatedAnswers = {
+      ...(projectData.answers || {}),
+      [current.key]: answer
+    };
 
     setProjectData({
       ...projectData,
-      answers: {
-        ...projectData.answers,
-        [current.key]: answer
-      }
+      answers: updatedAnswers
     });
 
     if (step < questions.length - 1) {
       setStep(step + 1);
-    } else {
+      return;
+    }
+
+    // FINAL QUESTION -> CALL DEPLOYMENT API
+    try {
+
+      setLoading(true);
+
+      const token = localStorage.getItem("accessToken");
+
+      if (!token) {
+        alert("Login required");
+        navigate("/");
+        return;
+      }
+
+      if (!projectData.techstack_id) {
+        alert("Tech stack not found. Please generate stack again.");
+        navigate("/idea");
+        return;
+      }
+
+      const answers = updatedAnswers;
+
+      // Convert user range to numeric value
+      let usersNumber = 1000;
+
+      if (answers.users === "< 1k") usersNumber = 500;
+      if (answers.users === "1k - 10k") usersNumber = 5000;
+      if (answers.users === "10k - 100k") usersNumber = 50000;
+      if (answers.users === "100k+") usersNumber = 150000;
+
+      const payload = {
+        techstack: projectData.techstack_id,
+        coding_choice: answers.coding === "Coding" ? "coding" : "nocode",
+        monthly_users: usersNumber,
+        runtime: answers.runtime.toLowerCase(),
+        media_upload: answers.media === "Yes",
+        auth_required: answers.auth === "Yes"
+      };
+
+      console.log("Payload sent to backend:", payload);
+
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/myapp/deployment/preferences/",
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      console.log("Deployment API Response:", response.data);
+
+      setProjectData({
+        ...projectData,
+        answers: updatedAnswers,
+        deployment: response.data
+      });
+
       navigate("/cloud");
+
+    } catch (error) {
+
+      console.error(
+        "Deployment API Error:",
+        error.response?.data || error
+      );
+
+      alert("Deployment API failed");
+
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="app-shell flex min-h-screen flex-col items-center px-4">
+
       <FloatingLogo />
 
-      {/* Stepper */}
       <div className="flex w-full max-w-4xl items-center justify-between pt-2">
+
         <Stepper currentStep={3} />
+
         <button
           onClick={() => navigate("/dashboard")}
-          className="rounded-full border border-slate-700/80 bg-slate-950/80 px-3.5 py-1.5 text-xs font-medium text-slate-200 shadow-sm shadow-slate-900/80 transition hover:border-indigo-400 hover:text-indigo-100"
+          className="rounded-full border border-slate-700 px-3 py-1 text-xs text-white"
         >
           Home
         </button>
+
       </div>
 
-      <div className="mt-8 w-full max-w-3xl rounded-2xl border border-slate-800/80 bg-slate-950/90 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
-        <h2 className="text-lg font-semibold text-slate-50 text-center">
+      <div className="mt-8 w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 p-6">
+
+        <h2 className="text-lg font-semibold text-white text-center">
           {current.question}
         </h2>
-        <p className="mt-1 text-center text-xs text-slate-400">
-          These answers help us pick sensible defaults for your cloud setup.
-        </p>
 
         <div className="mt-6 grid gap-3">
+
           {current.options.map((opt, i) => (
+
             <button
               key={i}
+              disabled={loading}
               onClick={() => handleAnswer(opt)}
-              className="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 transition hover:border-indigo-400 hover:bg-slate-900"
+              className="flex justify-between rounded-xl border border-slate-800 px-4 py-3 text-white hover:border-indigo-400"
             >
+
               <span>{opt}</span>
+
               <span className="h-2 w-2 rounded-full bg-slate-600" />
+
             </button>
+
           ))}
+
         </div>
 
-        <div className="mt-5 flex items-center justify-between text-[0.75rem] text-slate-400">
-          <span>
-            Question {step + 1} of {questions.length}
-          </span>
-          <span className="rounded-full bg-slate-900/90 px-3 py-1 text-[0.7rem] text-slate-300">
-            Click an option to go next
-          </span>
+        <div className="mt-5 text-xs text-slate-400 text-center">
+          Question {step + 1} of {questions.length}
         </div>
+
       </div>
+
     </div>
   );
 }
