@@ -89,9 +89,11 @@ export default function Wizard() {
       if (answers.users === "10k - 100k") usersNumber = 50000;
       if (answers.users === "100k+") usersNumber = 150000;
 
+      console.log("Token:", token);
+      console.log("Techstack ID:", projectData.techstack_id);
       const payload = {
         techstack: projectData.techstack_id,
-        coding_choice: answers.coding === "Coding" ? "coding" : "nocode",
+        coding_choice: answers.coding === "Coding" ? "coding" : "no-code",
         monthly_users: usersNumber,
         runtime: answers.runtime.toLowerCase(),
         media_upload: answers.media === "Yes",

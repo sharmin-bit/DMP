@@ -40,6 +40,7 @@ export default function Login() {
           password: formData.password
         }
       );
+      localStorage.setItem("access_token", response.data.access);
 
       console.log("Login success:", response.data);
 

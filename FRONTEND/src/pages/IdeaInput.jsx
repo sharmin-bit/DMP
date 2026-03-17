@@ -22,85 +22,86 @@ export default function IdeaInput() {
 
   const handleContinue = async () => {
 
-    if (!projectData.idea) {
-      alert("Please enter your idea");
+  if (!projectData.idea) {
+    alert("Please enter your idea");
+    return;
+  }
+
+  try {
+
+    setLoading(true);
+
+    // ⭐ use consistent token key
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      alert("You are not logged in");
+      navigate("/");
       return;
     }
 
-    try {
-
-      setLoading(true);
-
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        alert("You are not logged in");
-        navigate("/");
-        return;
-      }
-
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/myapp/extract/",
-        {
-          prompt: projectData.idea
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          }
+    const response = await axios.post(
+      "http://127.0.0.1:8000/api/myapp/extract/",
+      {
+        prompt: projectData.idea
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
-      );
-
-      console.log("API Response:", response.data);
-
-      // FULL API response
-      const apiResponse = response.data;
-
-      // Tech stack extracted by Gemini
-      const apiData = apiResponse.data;
-
-      const updatedProject = {
-        ...projectData,
-
-        // ⭐ IMPORTANT — save techstack id
-        techstack_id: apiResponse.id,
-
-        // extracted stack
-        languages: apiData.languages || [],
-        frameworks: apiData.frameworks || [],
-        databases: apiData.databases || [],
-        cloud: apiData.cloud || [],
-
-        // helper values used later in UI
-        frontend: apiData.frameworks?.[0] || "React",
-        backend: apiData.languages?.[0] || "Python",
-        database: apiData.databases?.[0] || "PostgreSQL",
-        auth: "JWT Auth",
-        storage: apiData.cloud?.[0] || "AWS"
-      };
-
-      console.log("Saved Project Data:", updatedProject);
-
-      setProjectData(updatedProject);
-
-      navigate("/stack");
-
-    } catch (error) {
-
-      console.error("API Error:", error.response?.data || error);
-
-      if (error.response?.status === 401) {
-        alert("Session expired. Please login again.");
-        navigate("/");
-      } else {
-        alert("Failed to process idea");
       }
+    );
 
-    } finally {
-      setLoading(false);
+    console.log("API Response:", response.data);
+
+    const apiResponse = response.data;
+    const apiData = apiResponse.data;
+
+    // ⭐ IMPORTANT — Save techstack id for later pages
+    localStorage.setItem("techstack_id", apiResponse.id);
+    console.log("Saved techstack_id:", apiResponse.id);
+
+    const updatedProject = {
+      ...projectData,
+
+      techstack_id: apiResponse.id,
+
+      // extracted stack
+      languages: apiData.languages || [],
+      frameworks: apiData.frameworks || [],
+      databases: apiData.databases || [],
+      cloud: apiData.cloud || [],
+
+      // helper values used later in UI
+      frontend: apiData.frameworks?.[0] || "React",
+      backend: apiData.languages?.[0] || "Python",
+      database: apiData.databases?.[0] || "PostgreSQL",
+      auth: "JWT Auth",
+      storage: apiData.cloud?.[0] || "AWS"
+    };
+
+    console.log("Saved Project Data:", updatedProject);
+
+    setProjectData(updatedProject);
+
+    navigate("/stack");
+
+  } catch (error) {
+
+    console.error("API Error:", error.response?.data || error);
+
+    if (error.response?.status === 401) {
+      alert("Session expired. Please login again.");
+      navigate("/");
+    } else {
+      alert("Failed to process idea");
     }
-  };
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="app-shell flex min-h-screen flex-col items-center px-4">

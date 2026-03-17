@@ -5,11 +5,6 @@ from django.contrib.auth.models import User
 class TechStack(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     prompt = models.TextField()
-    result = models.JSONField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-class TechStack(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     data = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -43,10 +38,10 @@ class HostingSuggestion(models.Model):
     why = models.TextField()
     created_at = models.DateTimeField(default=timezone.now)
 
-# class DeploymentPlan(models.Model):
-#     user = models.ForeignKey(User, on_delete=models.CASCADE)
-#     techstack = models.ForeignKey(TechStack, on_delete=models.CASCADE)
+class DeploymentPlan(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    techstack = models.ForeignKey(TechStack, on_delete=models.CASCADE)
 
-#     #plan = models.TextField()
+    #plan = models.TextField()
 
-#     created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)

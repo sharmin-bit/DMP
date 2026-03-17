@@ -18,6 +18,47 @@ export default function DeploymentPlan() {
     "JWT_SECRET=your_secret_key"
   ];
 
+  const downloadPlan = async () => {
+  try {
+    const techstackId = localStorage.getItem("techstack_id"); // saved earlier
+    const token = localStorage.getItem("access_token");
+
+    const response = await fetch(
+      "http://127.0.0.1:8000/api/myapp/download-plan/",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          techstack_id: techstackId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.log("Backend error:", error);
+      throw new Error("Failed to download PDF");
+    }
+
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "deployment_plan.pdf";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    console.error(error);
+    alert("Error downloading deployment plan");
+  }
+};
   return (
     <div className="app-shell flex min-h-screen flex-col items-center px-4">
       <FloatingLogo />
@@ -107,6 +148,12 @@ export default function DeploymentPlan() {
 
           {/* Buttons */}
           <div className="flex gap-4">
+            <button
+    onClick={downloadPlan}
+    className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-medium text-white hover:bg-green-700"
+  >
+    Download Plan PDF
+  </button>
             <button
               onClick={() => navigate("/cloud")}
               className="flex-1 rounded-xl border border-slate-700/80 bg-slate-950/80 py-2.5 text-xs font-medium text-slate-200 shadow-sm shadow-slate-900/80 transition hover:border-indigo-400 hover:bg-slate-900 hover:text-indigo-100"

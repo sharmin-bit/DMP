@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import extract_techstack,create_deployment_pref,register_user,login_user,logout_user #,download_plan_pdf
+from .views import extract_techstack,create_deployment_pref,register_user,login_user,logout_user ,download_plan_pdf
 
 urlpatterns = [
     path("extract/", extract_techstack, name="extract-techstack"),
@@ -11,5 +11,5 @@ urlpatterns = [
     path("auth/logout/", logout_user),
 
     #download pdf
-    #path("download-plan/", download_plan_pdf),
+    path("download-plan/", download_plan_pdf),
 ]

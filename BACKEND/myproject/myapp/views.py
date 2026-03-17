@@ -16,13 +16,13 @@ from django.http import HttpResponse
 from .models import TechStack as TechStackModel
 from .serializers import TechStackSerializer
 #import google.generativeai as genai
-#from .utils import generate_deployment_pdf
+from .utils import generate_deployment_pdf
 from django.shortcuts import render
 from .models import (
     HostingSuggestion,
     TechStack,
     DeploymentPreference,
-    #DeploymentPlan
+    DeploymentPlan
 )
 from .serializers import (
     HostingSuggestionSerializer,
@@ -105,6 +105,7 @@ PROJECT IDEA:
         # Save in DB
         row = TechStackModel.objects.create(
             user=request.user,
+            prompt=prompt,
             data=parsed
         )
 
@@ -276,43 +277,58 @@ def logout_user(request):
         return Response({"error": "Invalid token"}, status=400)
     
 
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def download_plan_pdf(request):
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def download_plan_pdf(request):
 
-#     techstack_id = request.data.get("techstack_id")
+    techstack_id = request.data.get("techstack_id")
 
-#     user = request.user
+    if not techstack_id:
+        return Response({"error": "techstack_id is required"}, status=400)
 
-#     try:
-#         techstack = TechStack.objects.get(id=techstack_id, user=user)
+    user = request.user
 
-#         preference = DeploymentPreference.objects.get(
-#             techstack=techstack,
-#             user=user
-#         )
+    try:
+        techstack = TechStack.objects.filter(
+            id=techstack_id,
+            user=user
+        ).first()
 
-#         # plan = DeploymentPlan.objects.get(
-#         #     techstack=techstack,
-#         #     user=user,
-#         #     plan="1. Deploy React frontend to Vercel\n2. Deploy Node backend to Render\n3. Use MongoDB Atlas\n4. Setup authentication"
-#         # )
+        if not techstack:
+            return Response(
+                {"error": "TechStack not found for this user"},
+                status=404
+            )
 
-#     except TechStack.DoesNotExist:
-#         return Response({"error": "TechStack not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
-#     except DeploymentPlan.DoesNotExist:
-#         return Response({"error": "Deployment plan not generated yet"}, status=404)
+    try:
+        preference = DeploymentPreference.objects.filter(
+            techstack=techstack,
+            user=user
+        ).first()
 
-#     pdf_buffer = generate_deployment_pdf(
-#         project_idea="User project idea",
-#         techstack=techstack.data,
-#         preference=preference,
-#      #   plan_text=plan.plan
-#     )
+        if not preference:
+            return Response(
+                {"error": "Deployment preference not found"},
+                status=404
+            )
 
-#     response = HttpResponse(pdf_buffer, content_type="application/pdf")
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
-#     response["Content-Disposition"] = "attachment; filename=deployment_plan.pdf"
+    pdf_buffer = generate_deployment_pdf(
+        project_idea=techstack.prompt,
+        techstack=techstack.data,
+        preference=preference
+    )
 
-#     return response
+    response = HttpResponse(
+        pdf_buffer,
+        content_type="application/pdf"
+    )
+
+    response["Content-Disposition"] = "attachment; filename=deployment_plan.pdf"
+
+    return response

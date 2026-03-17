@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -132,6 +133,22 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+}
+
+SIMPLE_JWT = {
+    # Access token lasts for 1 hour (Default is 5 minutes)
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
+    
+    # Refresh token lasts for 7 days (Default is 1 day)
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    
+    # Allows you to get a new refresh token when you use one
+    "ROTATE_REFRESH_TOKENS": True,
+    
+    # This ensures old refresh tokens are added to the blacklist
+    "BLACKLIST_AFTER_ROTATION": True,
+    
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
