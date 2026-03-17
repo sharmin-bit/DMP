@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import FloatingLogo from "../components/FloatingLogo";
 import Stepper from "../components/Stepper";
+import { useToast } from "../components/ToastProvider.jsx";
 export default function DeploymentPlan() {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const steps = [
     "Install dependencies",
@@ -21,7 +23,9 @@ export default function DeploymentPlan() {
   const downloadPlan = async () => {
   try {
     const techstackId = localStorage.getItem("techstack_id"); // saved earlier
-    const token = localStorage.getItem("access_token");
+    const token =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("accessToken");
 
     const response = await fetch(
       "http://127.0.0.1:8000/api/myapp/download-plan/",
@@ -56,7 +60,11 @@ export default function DeploymentPlan() {
     link.remove();
   } catch (error) {
     console.error(error);
-    alert("Error downloading deployment plan");
+    toast.push({
+      tone: "error",
+      title: "Download failed",
+      message: "Error downloading deployment plan",
+    });
   }
 };
   return (

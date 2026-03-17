@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import FloatingLogo from "../components/FloatingLogo";
 import axios from "axios";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function Login() {
 
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -48,7 +50,11 @@ export default function Login() {
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
 
-      alert("Login successful!");
+      toast.push({
+        tone: "success",
+        title: "Signed in",
+        message: "Welcome back.",
+      });
 
       navigate("/dashboard");
 
@@ -57,9 +63,17 @@ export default function Login() {
       console.error("Login error:", error);
 
       if (error.response) {
-        alert(error.response.data.detail || "Invalid credentials");
+        toast.push({
+          tone: "error",
+          title: "Login failed",
+          message: error.response.data.detail || "Invalid credentials",
+        });
       } else {
-        alert("Server error. Please try again.");
+        toast.push({
+          tone: "error",
+          title: "Server error",
+          message: "Please try again.",
+        });
       }
 
     } finally {

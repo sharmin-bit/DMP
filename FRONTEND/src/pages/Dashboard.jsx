@@ -1,254 +1,509 @@
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ProjectContext } from "../context/ProjectContext";
+import { useToast } from "../components/ToastProvider.jsx";
+
+const PROJECTS_KEY = "p2d_projects_v1";
+const MAX_PROJECTS = 5;
+
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
 
 export default function Dashboard() {
 
   const navigate = useNavigate();
+  const { projectData, setProjectData } = useContext(ProjectContext);
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [activeId, setActiveId] = useState("");
+
+  const techstackId = useMemo(() => {
+    return (
+      projectData?.techstack_id ||
+      localStorage.getItem("techstack_id") ||
+      ""
+    );
+  }, [projectData?.techstack_id]);
+
+  const token = useMemo(() => {
+    // app currently uses both keys in different pages; be tolerant here
+    return (
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("accessToken") ||
+      ""
+    );
+  }, []);
+
+  useEffect(() => {
+    const stored = safeJsonParse(localStorage.getItem(PROJECTS_KEY), []);
+    setProjects(Array.isArray(stored) ? stored : []);
+  }, []);
+
+  const hasExtractedStack =
+    (projectData?.languages?.length || 0) +
+      (projectData?.frameworks?.length || 0) +
+      (projectData?.databases?.length || 0) +
+      (projectData?.cloud?.length || 0) >
+    0;
+
+  const currentProject = useMemo(() => {
+    const idea = (projectData?.idea || "").trim();
+    const stack = {
+      languages: projectData?.languages || [],
+      frameworks: projectData?.frameworks || [],
+      databases: projectData?.databases || [],
+      cloud: projectData?.cloud || [],
+    };
+    const hasIdea = Boolean(idea);
+    const hasStack = hasExtractedStack;
+
+    return {
+      id: techstackId || "",
+      idea,
+      stack,
+      createdAt: new Date().toISOString(),
+      hasIdea,
+      hasStack,
+      answers: projectData?.answers || {},
+      deployment: projectData?.deployment || null,
+    };
+  }, [
+    hasExtractedStack,
+    projectData?.answers,
+    projectData?.cloud,
+    projectData?.databases,
+    projectData?.deployment,
+    projectData?.frameworks,
+    projectData?.idea,
+    projectData?.languages,
+    techstackId,
+  ]);
+
+  const persistProjects = (next) => {
+    setProjects(next);
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(next));
+  };
+
+  const saveCurrentToHistory = () => {
+    if (!currentProject.id || !currentProject.hasIdea) {
+      toast.push({
+        tone: "warning",
+        title: "Nothing to save yet",
+        message: "Create an idea and generate a tech stack first.",
+      });
+      return;
+    }
+
+    const existing = projects.find((p) => String(p.id) === String(currentProject.id));
+    const entry = {
+      ...currentProject,
+      // keep existing createdAt if present
+      createdAt: existing?.createdAt || currentProject.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const next = [
+      entry,
+      ...projects.filter((p) => String(p.id) !== String(currentProject.id)),
+    ].slice(0, MAX_PROJECTS);
+    persistProjects(next);
+  };
+
+  // Auto-save whenever a new techstack is created (keep only last 5).
+  // Uses localStorage as source-of-truth to avoid stale state bugs.
+  useEffect(() => {
+    if (!currentProject.id || !currentProject.hasIdea) return;
+
+    const stored = safeJsonParse(localStorage.getItem(PROJECTS_KEY), []);
+    const list = Array.isArray(stored) ? stored : [];
+
+    const existing = list.find((p) => String(p.id) === String(currentProject.id));
+    const entry = {
+      ...currentProject,
+      createdAt: existing?.createdAt || currentProject.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const next = [
+      entry,
+      ...list.filter((p) => String(p.id) !== String(currentProject.id)),
+    ].slice(0, MAX_PROJECTS);
+
+    // Avoid re-writing if nothing changed (reduces rerenders)
+    const prevJson = JSON.stringify(list);
+    const nextJson = JSON.stringify(next);
+    if (prevJson !== nextJson) {
+      localStorage.setItem(PROJECTS_KEY, nextJson);
+      setProjects(next);
+    }
+  }, [currentProject]);
+
+  const clearCurrent = () => {
+    setProjectData({
+      idea: "",
+      stack: {},
+      answers: {},
+      cloud: {},
+    });
+    localStorage.removeItem("techstack_id");
+    setActiveId("");
+  };
+
+  const openProject = (p) => {
+    setProjectData({
+      idea: p.idea || "",
+      techstack_id: p.id,
+      languages: p.stack?.languages || [],
+      frameworks: p.stack?.frameworks || [],
+      databases: p.stack?.databases || [],
+      cloud: p.stack?.cloud || [],
+      answers: p.answers || {},
+      deployment: p.deployment || null,
+      stack: {},
+    });
+    localStorage.setItem("techstack_id", String(p.id));
+    setActiveId(String(p.id));
+  };
+
+  const deleteProject = (id) => {
+    const next = projects.filter((p) => String(p.id) !== String(id));
+    persistProjects(next);
+    if (String(activeId) === String(id)) setActiveId("");
+  };
+
+  const logout = async () => {
+    // Optional backend logout (blacklist refresh token). Ignore failures.
+    const refresh = localStorage.getItem("refreshToken");
+    try {
+      if (refresh) {
+        await fetch("http://127.0.0.1:8000/api/myapp/auth/logout/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh }),
+        });
+      }
+    } catch (e) {
+      console.warn("Logout API failed:", e);
+    } finally {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("techstack_id");
+      setActiveId("");
+      navigate("/login", { replace: true });
+    }
+  };
+
+  const downloadPlan = async () => {
+    if (!techstackId) {
+      toast.push({
+        tone: "warning",
+        title: "Missing tech stack",
+        message: "Generate your stack first.",
+      });
+      navigate("/idea");
+      return;
+    }
+    if (!token) {
+      toast.push({
+        tone: "warning",
+        title: "Login required",
+        message: "Please sign in to download the plan.",
+      });
+      navigate("/login");
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/myapp/download-plan/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ techstack_id: techstackId }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error("Backend error:", error);
+        throw new Error("Failed to download plan");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "deployment_plan.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      toast.push({
+        tone: "error",
+        title: "Download failed",
+        message: "Couldn’t download the deployment plan.",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
-    <div className="app-shell flex h-screen text-slate-100">
-      {/* Sidebar */}
-      <aside className="relative flex w-64 flex-col border-r border-slate-800/80 bg-slate-950/70 px-5 py-6 backdrop-blur-2xl">
-        <div className="mb-8 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-sky-500 to-fuchsia-500 text-base font-semibold text-white shadow-lg shadow-indigo-500/40">
-            ⚡
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-wide text-slate-50">
-              Prompt2Deploy
-            </span>
-            <span className="text-[0.6rem] uppercase tracking-[0.24em] text-slate-500">
-              Console
-            </span>
-          </div>
-        </div>
-
-        <nav className="space-y-1 text-sm">
-          <button className="flex w-full items-center gap-2 rounded-xl bg-slate-800/80 px-3 py-2.5 text-slate-50 shadow-sm shadow-slate-900/80">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span className="font-medium">Dashboard</span>
-          </button>
-
-          <button
-            onClick={() => navigate("/idea")}
-            className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-slate-300 transition hover:bg-slate-900/80 hover:text-slate-50"
-          >
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-slate-600" />
-              <span>New Project</span>
-            </span>
-            <span className="text-[0.65rem] text-slate-500">Ctrl + N</span>
-          </button>
-
-          <button className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-slate-300 transition hover:bg-slate-900/80 hover:text-slate-50">
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-slate-600" />
-              <span>Saved Plans</span>
-            </span>
-            <span className="text-[0.65rem] text-slate-500">Soon</span>
-          </button>
-
-          <button className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-slate-300 transition hover:bg-slate-900/80 hover:text-slate-50">
-            <span className="flex items-center gap-2">
-              <span className="h-1 w-1 rounded-full bg-slate-600" />
-              <span>Cloud Platforms</span>
-            </span>
-            <span className="text-[0.65rem] text-slate-500">Overview</span>
-          </button>
-        </nav>
-
-        <div className="mt-auto rounded-xl border border-slate-800/80 bg-slate-950/60 p-3 text-[0.7rem] text-slate-400">
-          <p className="font-medium text-slate-300">Today’s focus</p>
-          <p className="mt-1">
-            Turn one idea into a complete stack and deployment plan.
-          </p>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Top bar */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="app-shell flex min-h-screen flex-col items-center px-4 py-8 text-slate-100">
+      <div className="w-full max-w-5xl">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-slate-50">
               Dashboard
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              High-level view of your generated ideas and deployment plans.
+              Your projects, stack, and deployment blueprint actions.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <input
-                placeholder="Search projects…"
-                className="w-52 rounded-xl border border-slate-700/70 bg-slate-900/70 px-3.5 py-2 text-xs text-slate-100 outline-none ring-0 transition focus:border-indigo-400 focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/50 placeholder:text-slate-500"
-              />
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[0.65rem] text-slate-500">
-                /
-              </span>
-            </div>
-
-            <button className="inline-flex items-center gap-1 rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 shadow-sm shadow-slate-900/80 transition hover:border-indigo-400 hover:text-indigo-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>Realtime</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => navigate("/idea")}
+              className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-2 text-xs font-medium text-white shadow-lg shadow-indigo-500/30 transition hover:brightness-110"
+            >
+              New idea
+            </button>
+            <button
+              onClick={() => navigate("/stack")}
+              className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-400 hover:text-indigo-100"
+            >
+              Continue stack
+            </button>
+            <button
+              onClick={() => navigate("/wizard")}
+              className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-4 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-400 hover:text-indigo-100"
+            >
+              Deployment preferences
+            </button>
+            <button
+              onClick={logout}
+              className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-medium text-rose-100 transition hover:bg-rose-500/20"
+            >
+              Logout
             </button>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
-          {[
-            { label: "Total Projects", value: "247", trend: "+18%", tone: "from-sky-500/70 to-indigo-500/70" },
-            { label: "Ideas Today", value: "04", trend: "+2", tone: "from-emerald-500/70 to-teal-500/70" },
-            { label: "Generated Plans", value: "189", trend: "92%", tone: "from-amber-500/70 to-orange-500/70" },
-            { label: "Active Users", value: "156", trend: "Live", tone: "from-fuchsia-500/70 to-pink-500/70" },
-          ].map((card, idx) => (
-            <div
-              key={idx}
-              className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/70 px-4 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.8)]"
-            >
-              <div
-                className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-gradient-to-br ${card.tone} opacity-60 blur-2xl`}
-              />
-              <p className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-500">
-                {card.label}
-              </p>
-              <div className="mt-3 flex items-baseline justify-between">
-                <h3 className="text-2xl font-semibold text-slate-50">{card.value}</h3>
-                <span className="rounded-full bg-slate-900/90 px-2 py-0.5 text-[0.6rem] font-medium text-emerald-300">
-                  {card.trend}
-                </span>
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+          <section className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-50">
+                  Current project
+                </h3>
+                <p className="mt-1 text-[0.75rem] text-slate-400">
+                  Clear layout of your idea and extracted stack.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={saveCurrentToHistory}
+                  className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-400 hover:text-indigo-100"
+                >
+                  Save to projects
+                </button>
+                <button
+                  onClick={clearCurrent}
+                  className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-200 transition hover:border-amber-400 hover:text-amber-100"
+                >
+                  Clear current
+                </button>
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)]">
-          {/* Projects Table */}
-          <section className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-50">
-                Recent Ideas
-              </h3>
-              <span className="rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[0.6rem] font-medium text-slate-400">
-                Sample data
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5">
+                <p className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-slate-500">
+                  Idea
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">
+                  {projectData?.idea?.trim()
+                    ? projectData.idea
+                    : "No idea saved yet. Click “New idea” to start."}
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4">
+                    <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">
+                      Techstack id
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-slate-200">
+                      {techstackId || "Not generated yet"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4">
+                    <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">
+                      Session
+                    </p>
+                    <p className="mt-1 text-xs text-slate-200">
+                      {token ? "Authenticated" : "Not logged in"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5">
+                <p className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-slate-500">
+                  Extracted stack
+                </p>
+                <p className="mt-1 text-[0.75rem] text-slate-400">
+                  Generated from your idea using the backend extractor.
+                </p>
+
+                {!hasExtractedStack ? (
+                  <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 text-xs text-slate-300">
+                    No extracted stack yet. Submit an idea to generate one.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-3 text-xs text-slate-200">
+                    {[
+                      { label: "Languages", value: projectData?.languages },
+                      { label: "Frameworks", value: projectData?.frameworks },
+                      { label: "Databases", value: projectData?.databases },
+                      { label: "Cloud", value: projectData?.cloud },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4"
+                      >
+                        <p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-200">
+                          {item.value?.length ? item.value.join(", ") : "—"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={() => navigate("/plan")}
+                    className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-indigo-400 hover:text-indigo-100"
+                  >
+                    View plan page
+                  </button>
+                  <button
+                    onClick={downloadPlan}
+                    disabled={downloading}
+                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {downloading ? "Downloading…" : "Download plan PDF"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-50">
+                  Previous projects
+                </h3>
+                <p className="mt-1 text-[0.75rem] text-slate-400">
+                  Saved locally on this browser.
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-800/80 bg-slate-950/60 px-2.5 py-1 text-[0.65rem] font-medium text-slate-300">
+                {projects.length}/{MAX_PROJECTS}
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-xs text-slate-300">
-                <thead>
-                  <tr className="border-b border-slate-800/80 text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">
-                    <th className="py-2 pr-4">ID</th>
-                    <th className="py-2 pr-4">User</th>
-                    <th className="py-2 pr-4">Idea</th>
-                    <th className="py-2 pr-4">Date</th>
-                    <th className="py-2 text-right" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    {
-                      id: "#1247",
-                      user: "John",
-                      idea: "E-commerce app with React",
-                      date: "Dec 15",
-                    },
-                    {
-                      id: "#1246",
-                      user: "Sarah",
-                      idea: "Task manager with Firebase",
-                      date: "Dec 14",
-                    },
-                  ].map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b border-slate-800/80 last:border-0 hover:bg-slate-900/60"
+            {projects.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 text-xs text-slate-300">
+                No saved projects yet. Generate a stack and it will appear here.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {projects.slice(0, MAX_PROJECTS).map((p) => {
+                  const isActive = String(p.id) === String(activeId || techstackId);
+                  const dateLabel = p.createdAt
+                    ? new Date(p.createdAt).toLocaleString()
+                    : "—";
+                  const stackBadges = [
+                    ...(p.stack?.frameworks || []),
+                    ...(p.stack?.languages || []),
+                    ...(p.stack?.databases || []),
+                    ...(p.stack?.cloud || []),
+                  ]
+                    .filter(Boolean)
+                    .slice(0, 6);
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={[
+                        "rounded-2xl border bg-slate-950/60 p-4 transition",
+                        isActive
+                          ? "border-indigo-500/40 shadow-[0_0_0_1px_rgba(99,102,241,0.25)]"
+                          : "border-slate-800/80 hover:border-slate-700/80",
+                      ].join(" ")}
                     >
-                      <td className="py-3 pr-4 text-[0.75rem] text-slate-300">
-                        {row.id}
-                      </td>
-                      <td className="py-3 pr-4 text-[0.75rem] text-slate-200">
-                        {row.user}
-                      </td>
-                      <td className="py-3 pr-4 text-[0.75rem] text-slate-300">
-                        {row.idea}
-                      </td>
-                      <td className="py-3 pr-4 text-[0.75rem] text-slate-400">
-                        {row.date}
-                      </td>
-                      <td className="py-3 text-right">
-                        <button
-                          onClick={() => navigate("/plan")}
-                          className="rounded-full bg-indigo-500/15 px-3 py-1 text-[0.7rem] font-medium text-indigo-200 ring-1 ring-inset ring-indigo-500/40 transition hover:bg-indigo-500/30 hover:text-indigo-50"
-                        >
-                          View plan
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-slate-200">
+                            {p.idea || "Untitled idea"}
+                          </p>
+                          <p className="mt-1 text-[0.7rem] text-slate-500">
+                            <span className="font-mono">#{p.id}</span> · {dateLabel}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            onClick={() => openProject(p)}
+                            className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 py-1.5 text-[0.7rem] font-medium text-slate-200 transition hover:border-indigo-400 hover:text-indigo-100"
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() => deleteProject(p.id)}
+                            className="rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 py-1.5 text-[0.7rem] font-medium text-slate-200 transition hover:border-rose-400 hover:text-rose-100"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
 
-          {/* Stack Trends */}
-          <section className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/80 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.9)]">
-            <div className="pointer-events-none absolute -left-16 top-0 h-40 w-40 rounded-full bg-gradient-to-br from-sky-500/25 to-indigo-500/25 opacity-70 blur-3xl" />
-            <div className="pointer-events-none absolute -right-16 bottom-0 h-40 w-40 rounded-full bg-gradient-to-br from-fuchsia-500/25 to-violet-500/25 opacity-70 blur-3xl" />
-
-            <div className="relative">
-              <h3 className="text-sm font-semibold text-slate-50">
-                Tech stack trends
-              </h3>
-              <p className="mt-1 text-[0.7rem] text-slate-400">
-                Popular choices from recent generated plans.
-              </p>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {[
-                  { label: "React", tone: "from-sky-400/80 to-indigo-400/80" },
-                  { label: "Node.js", tone: "from-emerald-400/80 to-teal-400/80" },
-                  { label: "JavaScript", tone: "from-amber-400/80 to-orange-400/80" },
-                  { label: "Firebase", tone: "from-orange-400/80 to-red-400/80" },
-                  { label: "Python", tone: "from-fuchsia-400/80 to-violet-400/80" },
-                ].map((tag) => (
-                  <span
-                    key={tag.label}
-                    className={`inline-flex items-center gap-1 rounded-full bg-slate-900/80 px-3 py-1 text-[0.7rem] text-slate-100 ring-1 ring-inset ring-slate-700/80`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full bg-gradient-to-r ${tag.tone}`}
-                    />
-                    <span>{tag.label}</span>
-                  </span>
-                ))}
+                      {stackBadges.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {stackBadges.map((tag) => (
+                            <span
+                              key={`${p.id}-${tag}`}
+                              className="rounded-full border border-slate-800/80 bg-slate-950/70 px-2.5 py-1 text-[0.65rem] text-slate-200"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              <div className="mt-5 grid gap-3 text-[0.7rem] text-slate-300 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-800/80 bg-slate-950/80 p-3">
-                  <p className="text-xs font-medium text-slate-200">
-                    Frontend focus
-                  </p>
-                  <p className="mt-1 text-[0.7rem] text-slate-400">
-                    Most students pair React with serverless or containerized
-                    backends.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-800/80 bg-slate-950/80 p-3">
-                  <p className="text-xs font-medium text-slate-200">
-                    Deployment patterns
-                  </p>
-                  <p className="mt-1 text-[0.7rem] text-slate-400">
-                    Netlify + Render + managed databases is a common beginner
-                    friendly combo.
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </section>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

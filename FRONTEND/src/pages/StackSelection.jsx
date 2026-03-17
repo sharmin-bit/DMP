@@ -3,11 +3,13 @@ import { useContext } from "react";
 import FloatingLogo from "../components/FloatingLogo";
 import Stepper from "../components/Stepper";
 import { ProjectContext } from "../context/ProjectContext";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function StackSelection() {
 
   const navigate = useNavigate();
   const { projectData } = useContext(ProjectContext);
+  const toast = useToast();
 
   console.log("StackSelection ProjectData:", projectData);
 
@@ -46,7 +48,11 @@ export default function StackSelection() {
 
     // Ensure techstack id exists before moving forward
     if (!projectData?.techstack_id) {
-      alert("Tech stack not generated yet. Please enter idea again.");
+      toast.push({
+        tone: "warning",
+        title: "Missing tech stack",
+        message: "Please enter your idea again to generate a stack.",
+      });
       navigate("/idea");
       return;
     }

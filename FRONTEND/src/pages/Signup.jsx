@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import FloatingLogo from "../components/FloatingLogo";
 import axios from "axios";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function Signup() {
 
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -42,19 +44,24 @@ export default function Signup() {
 
       console.log("Signup success:", response.data);
 
-      alert("Account created successfully!");
+      toast.push({
+        tone: "success",
+        title: "Account created",
+        message: "You can sign in now.",
+      });
 
       // redirect to login page
-      navigate("/");
+      navigate("/login");
 
     } catch (error) {
 
       console.error("Signup error:", error.response?.data || error);
 
-      alert(
-        error.response?.data?.message ||
-        "Signup failed. Please try again."
-      );
+      toast.push({
+        tone: "error",
+        title: "Signup failed",
+        message: error.response?.data?.message || "Please try again.",
+      });
 
     } finally {
       setLoading(false);

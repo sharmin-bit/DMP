@@ -4,11 +4,13 @@ import axios from "axios";
 import FloatingLogo from "../components/FloatingLogo";
 import Stepper from "../components/Stepper";
 import { ProjectContext } from "../context/ProjectContext";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function Wizard() {
 
   const navigate = useNavigate();
   const { projectData, setProjectData } = useContext(ProjectContext);
+  const toast = useToast();
 
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
@@ -68,13 +70,21 @@ export default function Wizard() {
       const token = localStorage.getItem("accessToken");
 
       if (!token) {
-        alert("Login required");
-        navigate("/");
+        toast.push({
+          tone: "warning",
+          title: "Login required",
+          message: "Please sign in to continue.",
+        });
+        navigate("/login");
         return;
       }
 
       if (!projectData.techstack_id) {
-        alert("Tech stack not found. Please generate stack again.");
+        toast.push({
+          tone: "warning",
+          title: "Missing tech stack",
+          message: "Generate a stack first, then set preferences.",
+        });
         navigate("/idea");
         return;
       }
@@ -130,7 +140,11 @@ export default function Wizard() {
         error.response?.data || error
       );
 
-      alert("Deployment API failed");
+      toast.push({
+        tone: "error",
+        title: "Deployment failed",
+        message: "Please try again.",
+      });
 
     } finally {
       setLoading(false);
