@@ -179,10 +179,11 @@ export default function IdeaInput() {
           </h3>
 
           <ul className="mt-3 list-disc space-y-1 pl-4 text-xs">
-            <li>Explain what your app does.</li>
-            <li>Mention who will use it.</li>
-            <li>Add 2–3 main features.</li>
-            <li>No need for tech terms.</li>
+            <li>Write 1–2 lines describing the app you want to build.</li>
+            <li>Mention the target users (students, shop owners, teachers, etc.).</li>
+            <li>List 2–4 core features (login, dashboard, payments, chat, admin).</li>
+            <li>Mention important data (orders, tasks, profiles, products) so the backend can infer a database.</li>
+            <li>Don’t worry about tech names — your prompt is what the backend analyzes.</li>
           </ul>
 
         </div>

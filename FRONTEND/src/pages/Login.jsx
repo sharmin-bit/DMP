@@ -16,7 +16,6 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
 
-  // handle input change
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -24,7 +23,6 @@ export default function Login() {
     });
   };
 
-  // login function
   const handleLogin = async (e) => {
 
     e.preventDefault();
@@ -40,17 +38,25 @@ export default function Login() {
           password: formData.password
         }
       );
-      localStorage.setItem("access_token", response.data.access);
 
       console.log("Login success:", response.data);
 
-      // store tokens
+      // ✅ STORE TOKENS (keep your existing ones)
+      localStorage.setItem("access_token", response.data.access);
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
 
+      // 🔥 STORE ADMIN FLAG (NEW)
+      localStorage.setItem("isAdmin", response.data.is_admin);
+
       alert("Login successful!");
 
-      navigate("/dashboard");
+      // 🔥 ROLE-BASED REDIRECT
+      if (response.data.is_admin) {
+        navigate("/admin");        // Admin Panel
+      } else {
+        navigate("/dashboard");    // Normal User Panel
+      }
 
     } catch (error) {
 
@@ -65,7 +71,6 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-
   };
 
   return (
@@ -98,7 +103,6 @@ export default function Login() {
 
           {/* Username */}
           <div className="space-y-2">
-
             <label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
               Username
             </label>
@@ -112,18 +116,15 @@ export default function Login() {
               required
               className="w-full rounded-xl border border-slate-700/70 bg-slate-900/70 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50 placeholder:text-slate-500"
             />
-
           </div>
 
           {/* Password */}
           <div className="space-y-2">
-
             <label className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
               Password
             </label>
 
             <div className="relative">
-
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
@@ -141,14 +142,11 @@ export default function Login() {
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
-
             </div>
-
           </div>
 
           {/* Info Row */}
           <div className="flex items-center justify-between text-xs text-slate-400">
-
             <div className="flex items-center gap-2">
               <span className="inline-flex h-4 w-7 items-center justify-center rounded-full bg-indigo-500/20 text-[0.6rem] font-semibold text-indigo-300">
                 AI
@@ -162,7 +160,6 @@ export default function Login() {
             >
               Forgot password?
             </button>
-
           </div>
 
           {/* Login Button */}
@@ -171,10 +168,8 @@ export default function Login() {
             disabled={loading}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-sky-500 to-fuchsia-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/40 transition hover:brightness-110 disabled:opacity-60"
           >
-
             <span>{loading ? "Signing in..." : "Sign in"}</span>
             <span className="text-xs">→</span>
-
           </button>
 
           <p className="mt-4 text-center text-xs text-slate-400">

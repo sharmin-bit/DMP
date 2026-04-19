@@ -86,3 +86,5 @@ def generate_deployment_pdf(project_idea, techstack, preference):
     buffer.seek(0)
 
     return buffer
+
+

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Splash from "./pages/Splash";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import IdeaInput from "./pages/IdeaInput";
@@ -7,13 +8,15 @@ import Wizard from "./pages/Wizard";
 import Cloud from "./pages/Cloud";
 import DeploymentPlan from "./pages/DeploymentPlan";
 import Dashboard from "./pages/Dashboard";
+import AdminPanel from "./pages/AdminPanel";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Splash />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/idea" element={<IdeaInput />} />
         <Route path="/stack" element={<StackSelection />} />
@@ -21,6 +24,7 @@ function App() {
         <Route path="/cloud" element={<Cloud />} />
         <Route path="/plan" element={<DeploymentPlan />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/admin" element={<AdminPanel />} />
         
       </Routes>
     </BrowserRouter>

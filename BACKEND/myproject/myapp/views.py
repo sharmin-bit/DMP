@@ -15,7 +15,7 @@ from django.contrib.auth import authenticate
 from django.http import HttpResponse
 from .models import TechStack as TechStackModel
 from .serializers import TechStackSerializer
-#import google.generativeai as genai
+import google.generativeai as genai
 from .utils import generate_deployment_pdf
 from django.shortcuts import render
 from .models import (
@@ -42,7 +42,7 @@ SYSTEM_PROMPT = (
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-@api_view(["POST"])
+@api_view(["POST"]) 
 @permission_classes([IsAuthenticated])
 def extract_techstack(request):
 
@@ -59,16 +59,85 @@ def extract_techstack(request):
         full_prompt = f"""
 You are an expert software architect.
 
-Your task is to analyze a project idea and determine the technology stack.
+Your task is to analyze a project idea and determine the most suitable technology stack.
 
-IMPORTANT LOGIC:
+You must follow this logic strictly:
 
-1. If technologies are explicitly mentioned in the idea, extract them.
-2. If technologies are NOT mentioned, intelligently suggest a suitable stack for building the project.
+----------------------
+STEP 1: EXTRACTION
+----------------------
+- If the user explicitly mentions any technologies, extract them exactly.
+- Do NOT remove or override valid mentioned technologies.
+- Normalize common variations (e.g., "node" → "Node.js", "reactjs" → "React").
 
-Return ONLY valid JSON in the exact format below.
+----------------------
+STEP 2: INTELLIGENT SUGGESTION
+----------------------
+- If technologies are missing, suggest appropriate ones based on the project type.
 
-JSON FORMAT:
+Use these broad guidelines (NOT restrictive — choose intelligently):
+
+FRONTEND OPTIONS:
+- React → dynamic UI, dashboards, SPAs
+- Angular → enterprise-scale applications
+- Vue.js → lightweight and fast UI
+- HTML/CSS/JS → static or simple websites
+- React Native / Flutter → mobile apps
+
+BACKEND OPTIONS:
+- Django / Flask → Python-based apps
+- FastAPI → high-performance APIs, AI/ML systems
+- Node.js (Express/NestJS) → real-time apps, JS ecosystem
+- Spring Boot → large-scale Java enterprise systems
+
+DATABASE OPTIONS:
+- PostgreSQL / MySQL → relational structured data
+- MongoDB → flexible/unstructured data
+- Firebase → real-time/mobile backend
+- Redis → caching / real-time systems
+
+CLOUD OPTIONS:
+- AWS → scalable production systems
+- GCP → AI/ML-heavy applications
+- Azure → enterprise environments
+- Vercel / Netlify → frontend deployments
+- Firebase → full backend + hosting
+
+----------------------
+STEP 3: LANGUAGE MAPPING (IMPORTANT)
+----------------------
+Automatically include languages based on chosen frameworks:
+
+- Django / Flask / FastAPI → Python
+- React / Angular / Vue / Node.js → JavaScript
+- React Native → JavaScript (or TypeScript)
+- Flutter → Dart
+- Spring Boot → Java
+- Express / NestJS → JavaScript
+
+- If a framework is selected, its language MUST be included.
+- Avoid duplicate languages.
+- If user already specified a language, keep it.
+
+----------------------
+STEP 4: CONSISTENCY CHECK
+----------------------
+- Ensure all technologies are compatible.
+- Avoid conflicting stacks (e.g., Django + Node.js unless clearly needed).
+- Prefer a clean, minimal, production-ready stack.
+
+----------------------
+RULES:
+----------------------
+- Maximum 2-3 items per category.
+- Use modern, widely adopted technologies.
+- Always include at least one cloud platform.
+- Do NOT add explanations.
+- Do NOT include markdown.
+
+----------------------
+OUTPUT FORMAT (STRICT JSON):
+----------------------
 {{
   "languages": [],
   "frameworks": [],
@@ -76,13 +145,7 @@ JSON FORMAT:
   "cloud": []
 }}
 
-RULES:
-- Do NOT add explanation.
-- Do NOT include markdown.
-- Use common industry technologies.
-- Maximum 2-3 items per category.
-- If no cloud is required, still suggest one (AWS, GCP, Azure, Vercel, etc).
-
+----------------------
 PROJECT IDEA:
 {prompt}
 """
@@ -207,7 +270,10 @@ def create_deployment_pref(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     pref = serializer.save(user=request.user)
-
+    DeploymentPlan.objects.create(
+    user=request.user,
+    techstack=pref.techstack
+    )
     # get techstack data; handle case when pref.techstack might be None
     techstack_data = pref.techstack.data if getattr(pref, "techstack", None) else {"frameworks": [], "databases": []}
 
@@ -262,6 +328,7 @@ def login_user(request):
     return Response({
         "refresh": str(refresh),
         "access": str(refresh.access_token),
+        "is_admin": user.is_staff, 
     })
 
 
@@ -280,15 +347,15 @@ def logout_user(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def download_plan_pdf(request):
-
-    techstack_id = request.data.get("techstack_id")
-
-    if not techstack_id:
-        return Response({"error": "techstack_id is required"}, status=400)
-
-    user = request.user
-
     try:
+        techstack_id = request.data.get("techstack_id")
+
+        if not techstack_id:
+            return Response({"error": "techstack_id is required"}, status=400)
+
+        user = request.user
+
+        # Fetch TechStack
         techstack = TechStack.objects.filter(
             id=techstack_id,
             user=user
@@ -300,10 +367,12 @@ def download_plan_pdf(request):
                 status=404
             )
 
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
-
-    try:
+        # 🔥 CREATE PLAN ENTRY (FIX)
+        DeploymentPlan.objects.get_or_create(
+            user=user,
+            techstack=techstack
+         )
+        # Fetch Preference
         preference = DeploymentPreference.objects.filter(
             techstack=techstack,
             user=user
@@ -315,20 +384,54 @@ def download_plan_pdf(request):
                 status=404
             )
 
+        # Generate PDF
+        pdf_buffer = generate_deployment_pdf(
+            project_idea=techstack.prompt,
+            techstack=techstack.data,
+            preference=preference
+        )
+
+        # Response
+        response = HttpResponse(
+            pdf_buffer,
+            content_type="application/pdf"
+        )
+
+        response["Content-Disposition"] = f'attachment; filename="deployment_plan.pdf"'
+
+        return response
+
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        return Response(
+            {"error": f"Something went wrong: {str(e)}"},
+            status=500
+        )
+    
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_users(request):
+    users = User.objects.all().values("id", "username", "email")
+    return Response(list(users))
 
-    pdf_buffer = generate_deployment_pdf(
-        project_idea=techstack.prompt,
-        techstack=techstack.data,
-        preference=preference
-    )
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_techstacks(request):
+    stacks = TechStack.objects.all()
+    serializer = TechStackSerializer(stacks, many=True)
+    return Response(serializer.data)
 
-    response = HttpResponse(
-        pdf_buffer,
-        content_type="application/pdf"
-    )
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_plans(request):
+    plans = DeploymentPlan.objects.select_related("user", "techstack").all()
 
-    response["Content-Disposition"] = "attachment; filename=deployment_plan.pdf"
+    data = []
+    for plan in plans:
+        data.append({
+            "id": plan.id,
+            "username": plan.user.username,
+            "prompt": plan.techstack.prompt,
+            "created_at": plan.created_at
+        })
 
-    return response
+    return Response(data)
