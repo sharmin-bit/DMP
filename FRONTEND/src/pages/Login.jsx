@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import FloatingLogo from "../components/FloatingLogo";
 import axios from "axios";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function Login() {
-
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -24,11 +25,9 @@ export default function Login() {
   };
 
   const handleLogin = async (e) => {
-
     e.preventDefault();
 
     try {
-
       setLoading(true);
 
       const response = await axios.post(
@@ -41,31 +40,43 @@ export default function Login() {
 
       console.log("Login success:", response.data);
 
-      // ✅ STORE TOKENS (keep your existing ones)
+      // ✅ STORE TOKENS
       localStorage.setItem("access_token", response.data.access);
       localStorage.setItem("accessToken", response.data.access);
       localStorage.setItem("refreshToken", response.data.refresh);
 
-      // 🔥 STORE ADMIN FLAG (NEW)
+      // ✅ STORE ADMIN FLAG
       localStorage.setItem("isAdmin", response.data.is_admin);
 
-      alert("Login successful!");
+      // ✅ SUCCESS TOAST
+      toast.push({
+        tone: "success",
+        title: "Signed in",
+        message: "Welcome back.",
+      });
 
-      // 🔥 ROLE-BASED REDIRECT
+      // ✅ ROLE-BASED REDIRECT
       if (response.data.is_admin) {
-        navigate("/admin");        // Admin Panel
+        navigate("/admin");
       } else {
-        navigate("/dashboard");    // Normal User Panel
+        navigate("/dashboard");
       }
 
     } catch (error) {
-
       console.error("Login error:", error);
 
       if (error.response) {
-        alert(error.response.data.detail || "Invalid credentials");
+        toast.push({
+          tone: "error",
+          title: "Login failed",
+          message: error.response.data.detail || "Invalid credentials",
+        });
       } else {
-        alert("Server error. Please try again.");
+        toast.push({
+          tone: "error",
+          title: "Server error",
+          message: "Please try again.",
+        });
       }
 
     } finally {
@@ -75,15 +86,13 @@ export default function Login() {
 
   return (
     <div className="app-shell flex min-h-screen flex-col items-center justify-center px-4">
-
       <FloatingLogo />
 
       <div className="relative w-full max-w-md rounded-3xl border border-slate-700/70 bg-slate-900/80 px-8 py-9 shadow-[0_24px_80px_rgba(15,23,42,0.9)] backdrop-blur-3xl">
-
+        
         <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-indigo-500/30 via-sky-500/15 to-fuchsia-500/25 opacity-70 blur-3xl" />
 
         <div className="mb-6 flex items-center justify-between">
-
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-slate-50">
               Welcome back
@@ -96,7 +105,6 @@ export default function Login() {
           <span className="rounded-full border border-slate-700/70 bg-slate-900/80 px-3 py-1 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-slate-400">
             Student build
           </span>
-
         </div>
 
         <form onSubmit={handleLogin} className="mt-5 space-y-4">
@@ -183,9 +191,7 @@ export default function Login() {
           </p>
 
         </form>
-
       </div>
-
     </div>
   );
 }

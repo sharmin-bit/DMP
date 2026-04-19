@@ -4,12 +4,14 @@ import { ProjectContext } from "../context/ProjectContext";
 import FloatingLogo from "../components/FloatingLogo";
 import { useNavigate } from "react-router-dom";
 import Stepper from "../components/Stepper";
+import { useToast } from "../components/ToastProvider.jsx";
 
 export default function IdeaInput() {
 
   const { projectData, setProjectData } = useContext(ProjectContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const examples = [
     "Food delivery app using React",
@@ -23,7 +25,11 @@ export default function IdeaInput() {
   const handleContinue = async () => {
 
   if (!projectData.idea) {
-    alert("Please enter your idea");
+    toast.push({
+      tone: "warning",
+      title: "Missing idea",
+      message: "Please enter your idea first.",
+    });
     return;
   }
 
@@ -31,12 +37,17 @@ export default function IdeaInput() {
 
     setLoading(true);
 
-    // ⭐ use consistent token key
-    const token = localStorage.getItem("access_token");
+    const token =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("accessToken");
 
     if (!token) {
-      alert("You are not logged in");
-      navigate("/");
+      toast.push({
+        tone: "warning",
+        title: "Login required",
+        message: "Please sign in to continue.",
+      });
+      navigate("/login");
       return;
     }
 
@@ -92,10 +103,18 @@ export default function IdeaInput() {
     console.error("API Error:", error.response?.data || error);
 
     if (error.response?.status === 401) {
-      alert("Session expired. Please login again.");
-      navigate("/");
+      toast.push({
+        tone: "warning",
+        title: "Session expired",
+        message: "Please sign in again.",
+      });
+      navigate("/login");
     } else {
-      alert("Failed to process idea");
+      toast.push({
+        tone: "error",
+        title: "Couldn’t process idea",
+        message: "Please try again.",
+      });
     }
 
   } finally {

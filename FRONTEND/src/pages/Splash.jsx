@@ -5,8 +5,7 @@ import FloatingLogo from "../components/FloatingLogo";
 export default function Splash() {
   const navigate = useNavigate();
   const [leaving, setLeaving] = useState(false);
-
-  const durationMs = 2600;
+  const durationMs = 3000;
   const fadeOutMs = 520;
 
   const particles = useMemo(
